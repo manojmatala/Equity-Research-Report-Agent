@@ -57,6 +57,7 @@ def _format_chat(messages: List[BaseMessage]) -> List[Dict]:
 
 def llm_generate(messages: List[BaseMessage]) -> str:
     """Single entry point for all LLM calls. Returns raw assistant text."""
+    _client.api_key = os.getenv("OPENROUTER_API_KEY", "")
     response = _client.chat.completions.create(
         model=MODEL_ID,
         messages=_format_chat(messages),
@@ -78,49 +79,62 @@ REPORT_SECTIONS: List[str] = [
     "risks",
 ]
 
-SECTION_PROMPTS: Dict[str, str] = {
-    "investment_thesis": (
-        "Open with a one-line verdict: '[Rating] | PT $X | X% upside | 12-month horizon'. "
-        "Then write three labeled subsections: ## Bull Case (3 specific catalysts with metrics), "
-        "## Bear Case (3 specific risks with triggers), ## Catalysts (named events + expected timing). "
-        "Use 'we expect', 'we forecast', 'we believe'. Never use 'could', 'might', 'may'. "
-        "Every bullet must contain at least one number."
-    ),
-    "executive_summary": (
-        "Do NOT open with a company description. Lead with the rating and price target. "
-        "Cover: (1) recommendation + PT + upside, (2) the single most important financial metric "
-        "that supports the thesis, (3) the key near-term catalyst. 100 words max."
-    ),
-    "business_overview": (
-        "Focus on what is CHANGING, not what is stable. Describe the three revenue segments "
-        "with their approximate revenue contribution. Identify the one segment driving incremental "
-        "growth. Mention one structural competitive advantage that peers cannot easily replicate."
-    ),
-    "financial_performance": (
-        "Lead with the most recent annual revenue and YoY growth rate. Then cover: "
-        "net income margin trend, EPS trajectory, ROE vs cost of equity, and balance sheet leverage. "
-        "Include at least 4 specific numbers. End with one forward-looking sentence on what "
-        "we expect for the next fiscal year."
-    ),
-    "valuation": (
-        "Call run_dcf_valuation first to get the FCFE-based price target. "
-        "Then call fetch_financials for market multiples. "
-        "Structure: (1) DCF intrinsic value with key assumptions (WACC/cost of equity, terminal growth), "
-        "(2) P/E and P/B vs JPM and MS, (3) reconcile to final 12-month PT. "
-        "State the upside/downside explicitly in percentage terms."
-    ),
-    "industry_analysis": (
-        "State the industry's current cycle position (early/mid/late expansion or contraction). "
-        "Name the top 3 competitors with one differentiating metric each. "
-        "Identify the single biggest regulatory or macro tailwind/headwind for the next 12 months."
-    ),
-    "risks": (
-        "List exactly 5 risks. For each: name, H/M/L severity, the specific metric or event "
-        "that would signal the risk is materializing, and the estimated EPS/PT impact if it does. "
-        "Use a markdown table: | Risk | Severity | Trigger | PT Impact |"
-    ),
-}
 
+SECTION_PROMPTS: Dict[str, str] = {
+    "executive_summary":
+        "Write a professional executive summary for the equity research report. Include: (1) a key figures table "
+        "with TTM P/E, Forward P/E, Market Cap, 52-week range, dividend yield, "
+        "beta; (2) a 150-word investment thesis paragraph with Buy/Hold/Sell rating, "
+        "current price, and 12-month price target with % upside; (3) one sentence on "
+        "the core risk. Use specific numbers throughout."
+        "State where the bank stands in the market by assets, GSIB desgination"
+        "Include primary regulatory oversights (Fed, OCC, FDIC) and any recent regulatory actions."
+        "Use specific number throughout. Do no use generic phrases like Goldman is a leading Bank. When you quote a number, always include as of which year/quarater that number is.",
+
+    "business_overview":
+        "Produce a markdown table with five columns: Segment | Revenue $B | % of Total | "
+        "Margin | Key Revenue Driver. Cover all segements/verticals from the recent Annual Report "
+        "Follow with one sentence per segment explaining how it makes money "
+        "Cover: primary revenue lines with margins, key products/platforms, geographic "
+        "concentration, top customers and their % of revenue, competitive moat rating "
+        "(Wide/Narrow/None) with justification. Include a Porter's Five Forces summary.",
+
+
+    "financial_performance":
+        "Analyze the last 2 years of financials. Cover: revenue growth YoY with drivers, "
+        "gross/EBIT/net margin trends, EPS growth, FCF margin, key balance sheet metrics "
+        "(debt/equity, current ratio, cash position). Compare margins to sector peers. "
+        "Flag any deteriorating trends explicitly.",
+
+    "industry_analysis":
+        "Cover: total addressable market size ($B) and CAGR, top 3-5 competitors with "
+        "market share and key differentiators, regulatory environment (Basel III, CCAR "
+        "for banks), macro tailwinds and headwinds. Include a competitive positioning "
+        "summary table with key metrics vs peers.",
+
+    "valuation":
+        "Produce a blended valuation with three methods weighted equally (33% each): "
+        "(1) FCFE DCF — call run_dcf tool, show 5-year projection table, terminal value, "
+        "intrinsic price per share; "
+        "(2) P/B multiple — compare to sector median P/B, derive implied price; "
+        "(3) ROE/Cost of equity implied P/B — use Gordon Growth model. "
+        "Show sensitivity table (cost of equity vs terminal growth). "
+        "State final blended price target and % upside/downside clearly.",
+
+    "risks":
+        "List exactly 5 risks with: risk name, 2-sentence description, severity (H/M/L), "
+        "probability (H/M/L), and one mitigant. Focus on banking-specific risks: regulatory capital, "
+        "credit/loan loss risk, interest rate risk, trading revenue volatility,geopolitical/macro risk, "
+        "operational/technology risk.",
+
+    "investment_thesis":
+        "Structure as: (1) Bull case — 3 catalysts with specific triggers and upside scenario "
+        "price target; (2) Bear case — 3 risks with downside scenario price target; "
+        "(3) Base case — most likely outcome with 12-month price target; "
+        "(4) Final recommendation: Buy/Hold/Sell with conviction level (High/Medium/Low) "
+        "and one-sentence rationale. End with expected total return including dividend yield.",
+
+}
 # ── Tool schema registry ──────────────────────────────────────────────────────
 # tools.py calls register_tool_schemas() once at import time.
 # Keeps the import direction one-way: llm_engine never imports tools.
